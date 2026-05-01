@@ -13,16 +13,16 @@ This is the Emacs editor integration for [Turin](https://github.com/afsharalex/t
 
 ## Installation
 
-Drop `turin.el` somewhere on your `load-path`, then:
+Drop `turin-mode.el` somewhere on your `load-path`, then:
 
 ```elisp
-(require 'turin)
+(require 'turin-mode)
 ```
 
 Or with `use-package`:
 
 ```elisp
-(use-package turin
+(use-package turin-mode
   :commands (turin-start turin-next turin-prev turin-goto turin-quit turin-list))
 ```
 
@@ -124,7 +124,8 @@ this matters later for the streaming parser.
 
 ```
 turin-mode/
-├── turin.el     -- single-file plugin (loader, parser, anchor resolver,
-│                   commands, commentary mode)
+├── turin-mode.el -- single-file package (loader, parser, anchor resolver,
+│                    commands, commentary mode)
+├── LICENSE
 └── README.md
 ```

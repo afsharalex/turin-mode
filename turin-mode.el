@@ -1,8 +1,17 @@
-;;; turin.el --- Codebase tour playback -*- lexical-binding: t; -*-
+;;; turin-mode.el --- Play guided codebase tours -*- lexical-binding: t; -*-
 
+;; Copyright (C) 2026 Alex Afshar
+;;
+;; Author: Alex Afshar
+;; Maintainer: Alex Afshar
 ;; Version: 0.1.0
 ;; Package-Requires: ((emacs "28.1"))
-;; Keywords: tools, learning
+;; Keywords: tools, convenience
+;; URL: https://github.com/afsharalex/turin-mode
+;; License: MIT
+;; SPDX-License-Identifier: MIT
+;;
+;; This file is not part of GNU Emacs.
 
 ;;; Commentary:
 ;;
@@ -179,8 +188,8 @@ Returns the absolute path, or nil if not found."
         (turin--resolve-treesitter (alist-get 'query anchor) buffer))))))
 
 (defun turin--resolve-treesitter (query buffer)
-  "Run tree-sitter QUERY against BUFFER and return the first capture's start line.
-Requires Emacs 29+ with `treesit-query-capture' available; returns nil otherwise."
+  "Run tree-sitter QUERY against BUFFER.
+Return the first capture's start line, or nil when tree-sitter is unavailable."
   (when (and query (not (string-empty-p query))
              (fboundp 'treesit-available-p) (treesit-available-p)
              (fboundp 'treesit-query-capture)
@@ -303,6 +312,7 @@ Requires Emacs 29+ with `treesit-query-capture' available; returns nil otherwise
       (setq turin--state (make-turin--state :tour tour :index 1 :overlays nil))
       (turin--display-stop))))
 
+;;;###autoload
 (defun turin-next ()
   "Advance to the next tour stop."
   (interactive)
@@ -314,6 +324,7 @@ Requires Emacs 29+ with `treesit-query-capture' available; returns nil otherwise
       (setf (turin--state-index turin--state) (1+ idx))
       (turin--display-stop))))
 
+;;;###autoload
 (defun turin-prev ()
   "Retreat to the previous tour stop."
   (interactive)
@@ -324,6 +335,7 @@ Requires Emacs 29+ with `treesit-query-capture' available; returns nil otherwise
       (setf (turin--state-index turin--state) (1- idx))
       (turin--display-stop))))
 
+;;;###autoload
 (defun turin-goto (n)
   "Jump to stop N (1-based)."
   (interactive "nStop number: ")
@@ -335,6 +347,7 @@ Requires Emacs 29+ with `treesit-query-capture' available; returns nil otherwise
     (setf (turin--state-index turin--state) n)
     (turin--display-stop)))
 
+;;;###autoload
 (defun turin-quit ()
   "Close the active tour."
   (interactive)
@@ -343,6 +356,7 @@ Requires Emacs 29+ with `treesit-query-capture' available; returns nil otherwise
     (turin--close-commentary)
     (setq turin--state nil)))
 
+;;;###autoload
 (defun turin-list ()
   "Show the list of stops in the minibuffer."
   (interactive)
@@ -383,6 +397,6 @@ Binds single-letter keys for tour navigation: n/p/g/l/q."
   :lighter " Tour"
   :keymap turin-commentary-mode-map)
 
-(provide 'turin)
+(provide 'turin-mode)
 
-;;; turin.el ends here
+;;; turin-mode.el ends here
