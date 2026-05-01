@@ -23,7 +23,8 @@ Or with `use-package`:
 
 ```elisp
 (use-package turin-mode
-  :commands (turin-start turin-next turin-prev turin-goto turin-quit turin-list))
+  :commands (turin-start turin-next turin-next-commentary
+             turin-prev turin-prev-commentary turin-goto turin-quit turin-list))
 ```
 
 No additional setup is required.
@@ -44,7 +45,9 @@ While a tour is active, the commentary buffer enables `turin-commentary-mode`, w
 | Key | Action      |
 | --- | ----------- |
 | `n` | next stop   |
+| `N` | next stop, keep focus in commentary |
 | `p` | previous    |
+| `P` | previous, keep focus in commentary |
 | `g` | goto N      |
 | `l` | list stops  |
 | `q` | quit tour   |

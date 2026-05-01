@@ -73,6 +73,7 @@ Width when `turin-commentary-side' is `left' or `right'; height otherwise."
   tour                  ;; alist: ((meta . _) (stops . _) (turin-dir . _) (project-root . _))
   index                 ;; 1-based index of the current stop
   source-buffer
+  source-window
   commentary-buffer
   overlays)
 
@@ -256,6 +257,41 @@ Return the first capture's start line, or nil when tree-sitter is unavailable."
     (display-buffer-in-side-window buf (turin--commentary-window-params))
     buf))
 
+(defun turin--commentary-window-p (window)
+  "Return non-nil if WINDOW is currently showing Turin commentary."
+  (and turin--state
+       (window-live-p window)
+       (eq (window-buffer window)
+           (turin--state-commentary-buffer turin--state))))
+
+(defun turin--source-window-candidate (selected)
+  "Return the best window for source display, using SELECTED as fallback."
+  (let ((current (and turin--state
+                      (turin--state-source-window turin--state))))
+    (cond
+     ((and (window-live-p current)
+           (not (turin--commentary-window-p current)))
+      current)
+     ((not (turin--commentary-window-p selected))
+      selected)
+     (t
+      (or (cl-find-if
+           (lambda (win)
+             (not (turin--commentary-window-p win)))
+           (window-list nil 'no-minibuf))
+          selected)))))
+
+(defun turin--display-source-buffer (buffer)
+  "Display BUFFER in a normal source window and return that window."
+  (let ((win (turin--source-window-candidate (selected-window))))
+    (if (and (window-live-p win)
+             (not (turin--commentary-window-p win)))
+        (set-window-buffer win buffer)
+      (setq win (display-buffer buffer '((display-buffer-reuse-window
+                                          display-buffer-pop-up-window)))))
+    (setf (turin--state-source-window turin--state) win)
+    win))
+
 (defun turin--close-commentary ()
   (let ((buf (get-buffer "*turin commentary*")))
     (when buf
@@ -265,8 +301,9 @@ Return the first capture's start line, or nil when tree-sitter is unavailable."
 
 ;;; ----- core display -----
 
-(defun turin--display-stop ()
-  "Render the stop at `turin--state-index'."
+(defun turin--display-stop (&optional stay-in-commentary)
+  "Render the stop at `turin--state-index'.
+When STAY-IN-COMMENTARY is non-nil, leave focus in the commentary buffer."
   (let* ((tour    (turin--state-tour turin--state))
          (stops   (alist-get 'stops tour))
          (idx     (turin--state-index turin--state))
@@ -277,24 +314,28 @@ Return the first capture's start line, or nil when tree-sitter is unavailable."
          (path    (expand-file-name (or file "") root))
          (anchor  (alist-get 'anchor fm))
          (hl      (alist-get 'highlight fm))
-         (buf     (find-file-noselect path)))
+         (buf     (find-file-noselect path))
+         (source-window (turin--display-source-buffer buf)))
     (setf (turin--state-source-buffer turin--state) buf)
-    (pop-to-buffer buf '((display-buffer-reuse-window
-                          display-buffer-same-window)))
     (let ((line (turin--resolve-anchor anchor buf)))
       (when line
         (let ((total (with-current-buffer buf (line-number-at-pos (point-max)))))
           (setq line (max 1 (min line total))))
-        (goto-char (point-min))
-        (forward-line (1- line))
-        (recenter)
+        (with-selected-window source-window
+          (goto-char (point-min))
+          (forward-line (1- line))
+          (recenter))
         (turin--apply-highlight buf line (alist-get 'lines hl))))
     (let ((title (format "[%d/%d] %s"
                          idx (length stops)
                          (or (alist-get 'title fm) (alist-get 'filename stop)))))
-      (turin--close-commentary)
       (setf (turin--state-commentary-buffer turin--state)
-            (turin--display-commentary title (alist-get 'body stop))))))
+            (turin--display-commentary title (alist-get 'body stop))))
+    (if stay-in-commentary
+        (when-let ((win (get-buffer-window
+                         (turin--state-commentary-buffer turin--state))))
+          (select-window win))
+      (select-window source-window))))
 
 ;;; ----- commands -----
 
@@ -313,8 +354,9 @@ Return the first capture's start line, or nil when tree-sitter is unavailable."
       (turin--display-stop))))
 
 ;;;###autoload
-(defun turin-next ()
-  "Advance to the next tour stop."
+(defun turin-next (&optional stay-in-commentary)
+  "Advance to the next tour stop.
+When STAY-IN-COMMENTARY is non-nil, leave focus in the commentary buffer."
   (interactive)
   (unless (turin--active-p) (user-error "turin: no active tour"))
   (let* ((stops (alist-get 'stops (turin--state-tour turin--state)))
@@ -322,18 +364,31 @@ Return the first capture's start line, or nil when tree-sitter is unavailable."
     (when (< idx (length stops))
       (turin--clear-overlays)
       (setf (turin--state-index turin--state) (1+ idx))
-      (turin--display-stop))))
+      (turin--display-stop stay-in-commentary))))
 
 ;;;###autoload
-(defun turin-prev ()
-  "Retreat to the previous tour stop."
+(defun turin-next-commentary ()
+  "Advance to the next tour stop and keep focus in the commentary buffer."
+  (interactive)
+  (turin-next t))
+
+;;;###autoload
+(defun turin-prev (&optional stay-in-commentary)
+  "Retreat to the previous tour stop.
+When STAY-IN-COMMENTARY is non-nil, leave focus in the commentary buffer."
   (interactive)
   (unless (turin--active-p) (user-error "turin: no active tour"))
   (let ((idx (turin--state-index turin--state)))
     (when (> idx 1)
       (turin--clear-overlays)
       (setf (turin--state-index turin--state) (1- idx))
-      (turin--display-stop))))
+      (turin--display-stop stay-in-commentary))))
+
+;;;###autoload
+(defun turin-prev-commentary ()
+  "Retreat to the previous tour stop and keep focus in the commentary buffer."
+  (interactive)
+  (turin-prev t))
 
 ;;;###autoload
 (defun turin-goto (n)
@@ -384,7 +439,9 @@ Return the first capture's start line, or nil when tree-sitter is unavailable."
 (defvar turin-commentary-mode-map
   (let ((map (make-sparse-keymap)))
     (define-key map (kbd "n") #'turin-next)
+    (define-key map (kbd "N") #'turin-next-commentary)
     (define-key map (kbd "p") #'turin-prev)
+    (define-key map (kbd "P") #'turin-prev-commentary)
     (define-key map (kbd "g") #'turin-goto)
     (define-key map (kbd "l") #'turin-list)
     (define-key map (kbd "q") #'turin-quit)
